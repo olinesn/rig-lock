@@ -2,6 +2,9 @@
 
 > **Status: a proposal, on hold since 2026-10-23.** Nothing in it has been built or installed. It is kept, with its open
 > questions, for when the work is picked up. The diagrams are SVG files in `rig-fleet/` next to this page.
+>
+> Written in campy (olinesn/campy) as `docs/design/rig-fleet.md`, before the lock moved to this repository: paths in it
+> (`bench/…`, `docs/…`, `campy/…`) are campy's. The lock's files were campy's `bench/rig*`; here they are at the top.
 
 Goal: releases, health checks and rig checks on the rigs (EVO-X2, Dell Pro Max Slim FCS1250, Precision 7875, and since
 2026-10-28 the Dell Pro Tower Plus, an experiment machine: section 5; and since 2026-10-29 a Windows 11 virtual machine
