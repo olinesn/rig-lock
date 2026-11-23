@@ -13,7 +13,7 @@ every test takes, and a watch over everything a test can be spoiled by.
   rig.py hold [options] <owner> <tag> <pid>     hold the rig for a job already running
   rig.py break                                  remove a lock nobody holds any more
   rig.py version                                this copy's version, and the installed one's
-  rig.py install [--check] [--from <checkout>]  install this copy (a campy checkout's) as the rig's
+  rig.py install [--check] [--from <checkout>]  install this copy (a checkout's) as the rig's
 
 run waits until the rig is free, nothing else uses the GPU, the cameras, the
 video encoder or the trigger, no ephys acquisition program (SpikeGLX, Open
@@ -138,12 +138,12 @@ Ephys), or when quser shows a session in use; the log's last
 line is then RIG_STOPPED, run exits 75, and PAUSE keeps new tests away until 9 AM ("pause_until").
 
 Installing and versions. Each machine runs one installed copy, in RIG_ROOT, which every
-script calls (a campy checkout can be on any branch or commit, and every lock user on a
+script calls (a checkout can be on any branch or commit, and every lock user on a
 machine must run the same lock). Its version is a short hash of the seven files (rig.py,
 rig_windows.py, rig_macos.py, rig_guard.sh, rig_guard.ps1, rig_hold.ps1, rig_banner.ps1) with line endings ignored, so the
 same commit shows the same version on every machine; status (its second line) and every
 rig.log say it. To
-update, run the checkout's own copy: python <checkout>/bench/rig.py install. It takes the rig
+update, run the checkout's own copy: python <checkout>/rig.py install. It takes the rig
 with --no-wait (exit 75 if busy, nothing changed), refuses while any other rig.py run, hold
 or install, or rig_hold.ps1, is running or waiting (exit 75; on Windows a rig.py started over ssh is
 known by its marker, see "Other rig.py processes"), backs the old files up to
@@ -213,6 +213,10 @@ FILES = ("rig.py", "rig_windows.py", "rig_macos.py", "rig_guard.sh", "rig_guard.
 # The kinds macOS gives rig.py no way to see (rig_macos.py), unless RIG_EXTRA names a file as one
 UNWATCHED = ({"gpu", "encoder", "camera"} - set(EXTRA.values())) if MACOS else set()
 STAMP = "RIG_INSTALLED"
+# The repository the lock comes from (github.com/olinesn/rig-lock), as RIG_INSTALLED and install name it, unless the
+# checkout's origin names another (source_repo). The lock was part of campy until 2026-11-22: a RIG_INSTALLED
+# without a repo line came from a campy checkout.
+REPO = "rig-lock"
 
 def say(text):
 	"""print, which a closed stdout can't stop. With rig.py run ... | head, or an ssh whose local end was
@@ -1601,12 +1605,13 @@ def read_stamp(root=None):
 		return {}
 
 def installed_text():
-	"""'<version> in <ROOT>, installed <when> from campy <commit> by <who>', or what is known instead."""
+	"""'<version> in <ROOT>, installed <when> from <repo> <commit> by <who>', or what is known instead."""
 	v, stamp = version(ROOT), read_stamp()
 	text = "%s in %s" % (v, ROOT)
 	if not stamp:
 		return text + " (not installed with rig.py install)"
-	how = "%s from campy %s by %s" % (stamp.get("installed", "?"), stamp.get("commit", "?"), stamp.get("by", "?"))
+	how = "%s from %s %s by %s" % (stamp.get("installed", "?"), stamp.get("repo", "campy"), stamp.get("commit", "?"),
+		stamp.get("by", "?"))
 	if stamp.get("version") != v:
 		return text + " (changed since rig.py install put %s there on %s)" % (stamp.get("version", "?"), how)
 	return text + ", installed " + how
@@ -1627,8 +1632,15 @@ def git(folder, *args):
 		return None
 	return r.stdout.strip() if r.returncode == 0 else None
 
+def source_repo(folder):
+	"""The repository folder is a checkout of: the last part of its origin's URL (rig-lock), or REPO without one."""
+	url = git(folder, "remote", "get-url", "origin")
+	name = re.sub(r"\.git$", "", re.split(r"[/:\\]", url.rstrip("/\\"))[-1]) if url else ""
+	return name or REPO
+
 def source_folder(path):
-	"""The folder holding rig.py: path itself, or path/bench (a campy checkout)."""
+	"""The folder holding rig.py: path itself (a checkout of this repository), or path/bench (a campy checkout
+	from before the lock moved out of it)."""
 	for folder in (os.path.join(path, "bench"), path):
 		if os.path.isfile(os.path.join(folder, "rig.py")):
 			return os.path.abspath(folder)
@@ -1691,20 +1703,20 @@ def cmd_version(args):
 def cmd_install(args):
 	src = source_folder(args.source) if args.source else HERE
 	if same_folder(src, ROOT):
-		sys.exit("rig.py install: %s is the installed copy itself; run a campy checkout's bench/rig.py install, "
+		sys.exit("rig.py install: %s is the installed copy itself; run a checkout's rig.py install, "
 			"or give --from <checkout>" % src)
 	new, old = version(src), version(ROOT)
-	commit = git(src, "rev-parse", "--short=9", "HEAD")
+	commit, repo = git(src, "rev-parse", "--short=9", "HEAD"), source_repo(src)
 	if not commit and args.commit:
 		commit = "%s (said)" % args.commit
 	print("installed: rig.py " + installed_text())
-	print("source:    rig.py %s in %s (campy %s)" % (new, src, commit or "?, not a git checkout"))
+	print("source:    rig.py %s in %s (%s %s)" % (new, src, repo, commit or "?, not a git checkout"))
 	rows = compare(src)
 	for name, how in rows:
 		print("    %-16s %s" % (name, how))
 	missing = [name for name, how in rows if how == "not in the source"]
 	if missing:
-		sys.exit("rig.py install: %s has no %s; give a campy checkout" % (src, ", ".join(missing)))
+		sys.exit("rig.py install: %s has no %s; give a %s checkout" % (src, ", ".join(missing), REPO))
 	if new == old:
 		print("the installed copy is this one: nothing to install")
 		return
@@ -1719,7 +1731,7 @@ def cmd_install(args):
 		was = read_stamp().get("commit", "?").split("+")[0]
 		if re.match(r"^[0-9a-f]{7,40}$", was) and not commit.startswith(was) and not was.startswith(commit) \
 				and git(src, "merge-base", "--is-ancestor", commit, was) is not None and not args.allow_older:
-			sys.exit("rig.py install: campy %s is older than the installed %s (--allow-older to install it anyway)" % (commit, was))
+			sys.exit("rig.py install: %s %s is older than the installed %s (--allow-older to install it anyway)" % (repo, commit, was))
 		if dirty:
 			commit += "+changes"
 	owner = args.owner or os.environ.get("RIG_OWNER") or "unnamed"
@@ -1762,11 +1774,11 @@ def cmd_install(args):
 			sys.exit("rig.py install: the installed copy is %s, not %s; the old files are in %s" % (version(ROOT), new, backup))
 		when = time.strftime("%Y-%m-%d %H:%M:%S")
 		with open(os.path.join(ROOT, STAMP), "w", encoding="utf-8") as f:
-			f.write("version: %s\ncommit: %s\nfrom: %s\ninstalled: %s\nby: %s\nprevious: %s\nbackup: %s\n" % (
-				new, commit or "?", src, when, owner, old, backup or "none"))
+			f.write("version: %s\nrepo: %s\ncommit: %s\nfrom: %s\ninstalled: %s\nby: %s\nprevious: %s\nbackup: %s\n" % (
+				new, repo, commit or "?", src, when, owner, old, backup or "none"))
 		with open(os.path.join(ROOT, "rig-install.log"), "a", encoding="utf-8") as f:
-			f.write("%s %s installed rig.py %s (campy %s, from %s) over %s; backup %s\n" % (
-				when, owner, new, commit or "?", src, old, backup or "none"))
+			f.write("%s %s installed rig.py %s (%s %s, from %s) over %s; backup %s\n" % (
+				when, owner, new, repo, commit or "?", src, old, backup or "none"))
 		say("installed rig.py %s over %s%s" % (new, old, "; the old files are in " + backup if backup else ""))
 	finally:
 		if not inside:
@@ -2299,14 +2311,14 @@ def main(argv=None):
 	limits(sub.add_parser("status", help="who holds the rig, and who uses each device"))
 	sub.add_parser("break", help="remove a lock that nothing holds any more, or one written by hand")
 	sub.add_parser("version", help="this copy's version, and the installed one's")
-	p = sub.add_parser("install", help="install this rig.py (a campy checkout's) as the rig's, when the rig is free")
-	p.add_argument("--from", dest="source", help="the campy checkout (or its bench folder) to install from; "
+	p = sub.add_parser("install", help="install this rig.py (a checkout's) as the rig's, when the rig is free")
+	p.add_argument("--from", dest="source", help="the checkout (or the folder holding rig.py) to install from; "
 		"default: this rig.py's own folder")
 	p.add_argument("--check", action="store_true", help="only say whether the installed copy differs (exit 3 if it does)")
 	p.add_argument("--owner", help="who installs it (default RIG_OWNER)")
 	p.add_argument("--allow-dirty", action="store_true", help="install uncommitted changes to the lock's files")
 	p.add_argument("--allow-older", action="store_true", help="install a commit older than the installed one")
-	p.add_argument("--commit", help="the campy commit the files are from, when --from is a copy, not a git checkout")
+	p.add_argument("--commit", help="the commit the files are from, when --from is a copy, not a git checkout")
 	for name in ("run", "hold"):
 		p = sub.add_parser(name)
 		limits(p)

@@ -1,5 +1,5 @@
 """
-The Windows half of bench/rig.py: which processes run, what each uses, and the CPU and disk each
+The Windows half of rig.py: which processes run, what each uses, and the CPU and disk each
 takes, read from Windows itself through ctypes (Python's standard library only; 64-bit Python).
 
 What a process counts as using:

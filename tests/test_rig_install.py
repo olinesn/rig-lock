@@ -1,5 +1,5 @@
-"""rig.py version and rig.py install: the lock's version, and installing a campy checkout's copy
-as the machine's.
+"""rig.py version and rig.py install: the lock's version, and installing a checkout's copy as
+the machine's.
 
 In-process tests (the lock a gpu.lock file, no process scan) run on any OS; whole runs of rig.py need
 Linux or Windows, where it can see processes.
@@ -24,7 +24,7 @@ has_git = pytest.mark.skipif(not shutil.which("git"), reason="needs git")
 
 
 def copy_lock(folder, extra=b""):
-	"""The five lock files from bench/ in folder (rig_guard.ps1 with extra appended)."""
+	"""The lock's files (FILES) from this repository in folder (rig_guard.ps1 with extra appended)."""
 	os.makedirs(folder, exist_ok=True)
 	for name in riglib.FILES:
 		with open(os.path.join(LOCK_DIR, name), "rb") as f:
@@ -87,7 +87,7 @@ def test_install_copies_every_file_backs_up_and_records_it(root, tmp_path, capsy
 	(root / "rig.py").write_text("# the old rig.py\n")
 	old = riglib.version(str(root))
 	src = copy_lock(tmp_path / "checkout" / "bench")
-	riglib.cmd_install(args(source=str(tmp_path / "checkout")))  # a checkout: its bench folder
+	riglib.cmd_install(args(source=str(tmp_path / "checkout")))  # a campy checkout from before the move: its bench folder
 	out = capsys.readouterr().out
 	new = riglib.version(src)
 	assert riglib.version(str(root)) == new and "installed rig.py %s over %s" % (new, old) in out, out
@@ -95,6 +95,7 @@ def test_install_copies_every_file_backs_up_and_records_it(root, tmp_path, capsy
 		assert (root / name).read_bytes() == open(os.path.join(src, name), "rb").read()
 		assert not (root / (name + ".new")).exists()
 	stamp = riglib.read_stamp()
+	assert stamp["repo"] == "rig-lock"  # not a git checkout: the lock's own repository
 	assert stamp["version"] == new and stamp["previous"] == old and stamp["by"] == "tester" and stamp["from"] == src
 	backup = stamp["backup"]
 	assert os.path.basename(backup).startswith(old + "-") and open(os.path.join(backup, "rig.py")).read() == "# the old rig.py\n"
@@ -110,9 +111,17 @@ def test_install_copies_every_file_backs_up_and_records_it(root, tmp_path, capsy
 
 def test_a_copy_changed_by_hand_after_install_says_so(root, tmp_path):
 	riglib.cmd_install(args(source=copy_lock(tmp_path / "src"), commit="abc1234"))  # copied files: their commit, as said
-	assert riglib.read_stamp()["commit"] == "abc1234 (said)" and "from campy abc1234 (said)" in riglib.installed_text()
+	assert riglib.read_stamp()["commit"] == "abc1234 (said)" and "from rig-lock abc1234 (said)" in riglib.installed_text()
 	(root / "rig.py").write_text("# edited on the machine\n")
 	assert "changed since rig.py install put" in riglib.installed_text()
+
+
+def test_a_copy_installed_from_campy_before_the_move_says_campy(root):
+	# A RIG_INSTALLED written by campy's bench/rig.py install has no repo line: its commit is campy's
+	copy_lock(root)
+	(root / riglib.STAMP).write_text("version: %s\ncommit: 347a33085\ninstalled: 2026-11-19 16:55:57\nby: someone\n"
+		% riglib.version(str(root)))
+	assert riglib.installed_text().endswith(", installed 2026-11-19 16:55:57 from campy 347a33085 by someone")
 
 
 def test_check_only_compares(root, tmp_path, capsys):
@@ -185,8 +194,8 @@ def git(folder, *a):
 
 @has_git
 def test_install_refuses_uncommitted_changes_and_older_commits(root, tmp_path, capsys):
-	repo = tmp_path / "campy"
-	src = copy_lock(repo / "bench")
+	repo = tmp_path / "rig-lock"
+	src = copy_lock(repo)  # a checkout of this repository: the files at its top
 	git(repo, "init", "-q")
 	git(repo, "add", ".")
 	git(repo, "commit", "-q", "-m", "one")
@@ -197,18 +206,21 @@ def test_install_refuses_uncommitted_changes_and_older_commits(root, tmp_path, c
 		riglib.cmd_install(args(source=str(repo)))
 	assert "uncommitted changes" in str(e.value.code) and not (root / "rig.py").exists()
 	riglib.cmd_install(args(source=str(repo), allow_dirty=True))
-	assert riglib.read_stamp()["commit"] == first + "+changes"
+	assert riglib.read_stamp()["commit"] == first + "+changes" and riglib.read_stamp()["repo"] == "rig-lock"
+	git(repo, "remote", "add", "origin", "git@github.com:someone/rig-lock-fork.git")  # its origin names the repository
 	git(repo, "commit", "-q", "-am", "two")
 	with open(os.path.join(src, "rig_hold.ps1"), "a") as f:
 		f.write("# three\n")
 	git(repo, "commit", "-q", "-am", "three")
 	third = riglib.git(src, "rev-parse", "--short=9", "HEAD")
 	riglib.cmd_install(args(source=str(repo)))
-	assert riglib.read_stamp()["commit"] == third
+	assert riglib.read_stamp()["commit"] == third and riglib.read_stamp()["repo"] == "rig-lock-fork"
+	assert "from rig-lock-fork %s by tester" % third in riglib.installed_text()
+	assert "(rig-lock-fork %s, from %s)" % (third, src) in (root / "rig-install.log").read_text()
 	git(repo, "checkout", "-q", first)  # an older commit
 	with pytest.raises(SystemExit) as e:
 		riglib.cmd_install(args(source=str(repo)))
-	assert "is older than the installed" in str(e.value.code)
+	assert "rig-lock-fork %s is older than the installed %s" % (first, third) in str(e.value.code)
 	riglib.cmd_install(args(source=str(repo), allow_older=True))
 	assert riglib.read_stamp()["commit"] == first
 

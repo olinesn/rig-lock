@@ -2,7 +2,7 @@
 # with a Stop button (docs/design/rig-fleet.md, section 5).
 #
 # It runs in the lab account's session, at the machine or over Remote Desktop, started at logon by the
-# Task Scheduler task "campy test banner" (bench/rig_experiment_setup.ps1 registers it; rig.py starts the
+# Task Scheduler task "campy test banner" (rig_experiment_setup.ps1 registers it; rig.py starts the
 # task itself when the banner isn't running). It is hidden while no test runs. It is PowerShell, not
 # Python, on purpose: rig.py counts every python.exe as a GPU user, so a Python banner would block every
 # test and spoil its timing.

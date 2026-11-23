@@ -64,7 +64,7 @@ $trigger = New-ScheduledTaskTrigger -AtLogOn -User $me
 $principal = New-ScheduledTaskPrincipal -UserId $me -LogonType Interactive -RunLevel Limited
 $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit ([TimeSpan]::Zero) -MultipleInstances IgnoreNew
 Register-ScheduledTask -TaskName $Task -Action $action -Trigger $trigger -Principal $principal -Settings $settings `
-	-Description 'campy: the banner that shows a running campy test, with a Stop button (bench/rig_banner.ps1)' -Force | Out-Null
+	-Description 'campy: the banner that shows a running campy test, with a Stop button (rig_banner.ps1)' -Force | Out-Null
 Write-Host "task '$Task' registered: it starts the banner at logon, in $me's session"
 
 $shell = New-Object -ComObject WScript.Shell

@@ -1,5 +1,5 @@
 """
-The macOS half of bench/rig.py: which processes run, and what each uses, read from macOS itself (Python's
+The macOS half of rig.py: which processes run, and what each uses, read from macOS itself (Python's
 standard library only: ps, and ctypes over libproc and sysctl).
 
 macOS has no /proc. What rig.py reads there instead:
