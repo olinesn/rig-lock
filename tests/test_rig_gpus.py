@@ -1,4 +1,4 @@
-"""bench/rig.py, one GPU at a time (--gpu, RIG_GPU): runs holding single GPUs side by side, a run for the
+"""rig.py, one GPU at a time (--gpu, RIG_GPU): runs holding single GPUs side by side, a run for the
 whole machine waiting for them in line, what counts against each, and what a reader of gpu.lock that knows
 nothing of GPUs (an older rig.py, rig_hold.ps1, a GPU queue, a guarded script) makes of it.
 
@@ -11,9 +11,9 @@ import os, re, shutil, signal, subprocess, sys, time
 
 import pytest
 
-BENCH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "bench")
-RIG = os.path.join(BENCH, "rig.py")
-sys.path.insert(0, BENCH)
+LOCK_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # this repository: the lock files are at its top
+RIG = os.path.join(LOCK_DIR, "rig.py")
+sys.path.insert(0, LOCK_DIR)
 import rig  # noqa: E402
 
 # rig.py looks at the whole machine (every process on it, its CPU and disk load): these tests run with no
@@ -566,7 +566,7 @@ def test_a_killed_rig_py_of_a_gpu_run_keeps_its_gpu_until_its_job_ends(gpus):
 @posix
 def test_a_guarded_script_with_rig_gpu_takes_one_gpu_once(gpus):
 	for f in ("rig.py", "rig_macos.py", "rig_windows.py", "rig_guard.sh"):
-		(gpus.root / f).write_text(open(os.path.join(BENCH, f)).read())
+		(gpus.root / f).write_text(open(os.path.join(LOCK_DIR, f)).read())
 	inner = gpus.tmp / "inner.sh"
 	inner.write_text('. "$RIG_ROOT/rig_guard.sh" "$@"\necho "inner $RIG_JOB $CUDA_VISIBLE_DEVICES"\n')
 	outer = gpus.tmp / "outer.sh"
@@ -582,7 +582,7 @@ def test_a_guarded_script_with_rig_gpu_takes_one_gpu_once(gpus):
 @windows
 def test_rig_hold_ps1_stands_in_line_while_a_gpu_is_held(gpus):
 	for f in ("rig.py", "rig_windows.py", "rig_hold.ps1"):
-		(gpus.root / f).write_text(open(os.path.join(BENCH, f)).read())
+		(gpus.root / f).write_text(open(os.path.join(LOCK_DIR, f)).read())
 	a = gpus.run("alice", "render", 0, 0, gpus.tmp / "go")
 	until(lambda: gpus.started("render"), what="render's job")
 	hold = subprocess.Popen(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(gpus.root / "rig_hold.ps1"),
