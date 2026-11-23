@@ -155,7 +155,9 @@ function Ticket {
 		[IO.File]::WriteAllText("$path.tmp", "$text`n", [Text.UTF8Encoding]::new($false))
 		Move-Item -LiteralPath "$path.tmp" -Destination $path -Force
 		$script:Ticket = $path
-	} catch { }
+	} catch {  # the next look tries again; a .tmp left behind would be litter (rig.py removes old ones too)
+		if ($path) { Remove-Item -LiteralPath "$path.tmp" -Force -ErrorAction SilentlyContinue }
+	}
 }
 function DropTicket {
 	if ($script:Ticket) { Remove-Item -LiteralPath $script:Ticket -Force -ErrorAction SilentlyContinue; $script:Ticket = $null }

@@ -111,6 +111,11 @@ def gpus(tmp_path):
 	for name in ("RIG_JOB", "RIG_TAG", "RIG_LOGDIR", "RIG_EXTRA", "RIG_GPU", "RIG_WHOLE", "RIG_STRICT", "RIG_ALLOW",
 			"CUDA_VISIBLE_DEVICES", "CUDA_DEVICE_ORDER"):
 		env.pop(name, None)
+	if WINDOWS:
+		# There the fake nvidia-smi is itself a python.exe, which, as every python*.exe, would count as a GPU user: the
+		# one a rig.py status or a run waiting in line starts would count against the runs. Here a process is on a GPU
+		# only when the fake lists it (test_rig_windows.py tests the python*.exe rule)
+		env["RIG_GPU_NAMES"] = "not-by-name"
 	os.makedirs(env["RIG_ROOT"])
 
 	class Gpus:
@@ -340,6 +345,16 @@ def test_a_gpu_run_waits_behind_the_whole_machine_in_line_and_one_for_the_other_
 		other.wait()
 
 
+def test_a_ticket_left_as_tmp_is_removed_once_old(root):
+	# rig_hold.ps1 writes its ticket as <name>.tmp, then renames it; a rename that failed leaves the .tmp
+	q = root / "rig-queue"
+	q.mkdir()
+	old, new = q / ("%020d-1.tmp" % 1), q / ("%020d-2.tmp" % 2)
+	old.write_text("want=whole\n"), new.write_text("want=whole\n")
+	os.utime(old, (time.time() - 120, time.time() - 120))
+	assert rig.tickets(prune=True) == [] and not old.exists() and new.exists()
+
+
 @runs
 def test_a_waiting_rig_py_stands_in_line_and_leaves_it_once_it_has_the_lock(root, capsys):
 	(root / "gpu.lock").write_text("hand-written 06:00\n")
@@ -506,8 +521,11 @@ def test_what_counts_against_a_run_holding_one_gpu(gpus):
 	assert last(blog).startswith("RIG_CONTAMINATED (") and int(re.search(r"wrong-gpu (\d+)", last(blog)).group(1)) >= 1, blog
 
 
-SAYS = "import os, sys\nwith open(sys.argv[1], 'w') as f:\n\tf.write(open(sys.argv[2]).read() + os.environ['CUDA_VISIBLE_DEVICES'] " \
-	"+ ' ' + os.environ.get('CUDA_DEVICE_ORDER', '-'))"
+# gpu.lock once its line names the job's pid (rig.py rewrites the line as the job starts, so a read just then can find
+# it empty), then the job's CUDA_VISIBLE_DEVICES and CUDA_DEVICE_ORDER
+SAYS = ("import os, sys, time\nt0 = time.monotonic()\nwhile True:\n\tline = open(sys.argv[2]).read()\n"
+	"\tif ' pid=' in line or time.monotonic() - t0 > 20:\n\t\tbreak\n\ttime.sleep(0.05)\n"
+	"with open(sys.argv[1], 'w') as f:\n\tf.write(line + os.environ['CUDA_VISIBLE_DEVICES'] + ' ' + os.environ.get('CUDA_DEVICE_ORDER', '-'))")
 
 
 @runs
@@ -589,8 +607,12 @@ def test_rig_hold_ps1_stands_in_line_while_a_gpu_is_held(gpus):
 		"-Owner", "tester", "-Tag", "training", "-Root", str(gpus.root), "-Seconds", "3"], env=gpus.env,
 		stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
 	queue = gpus.root / "rig-queue"
-	until(lambda: queue.exists() and os.listdir(queue), timeout=60, what="rig_hold.ps1's ticket")
-	f = rig.fields((queue / os.listdir(queue)[0]).read_text(encoding="utf-8-sig"))
+	def ticket():
+		# the ticket itself, not the .tmp it is written as first: reading that one would keep it from being renamed
+		names = [n for n in os.listdir(queue) if re.match(r"\d+-\d+$", n)] if queue.exists() else []
+		return names and queue / names[0]
+	until(ticket, timeout=60, what="rig_hold.ps1's ticket")
+	f = rig.fields(ticket().read_text(encoding="utf-8-sig"))
 	assert f["want"] == "whole" and f["owner"] == "tester" and f["rigpid"] == str(hold.pid), f
 	r = gpus("run", "--no-wait", "--gpu", "1", "bob", "quick", "--", sys.executable, "-c", "pass")
 	assert r.returncode == 75 and "in line before this run: tester training for the whole machine" in r.stdout, r.stdout
