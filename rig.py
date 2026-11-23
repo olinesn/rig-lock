@@ -1452,11 +1452,17 @@ def queue_folder():
 
 def tickets(prune=False):
 	"""[(name, fields)] of who waits in line, oldest first: the tickets whose rig.py (or rig_hold.ps1) still runs.
-	prune (under the guard): remove the others."""
+	prune (under the guard): remove the others, and any <ticket>.tmp over 60 s old (one whose rename failed)."""
 	try:
-		names = sorted(n for n in os.listdir(queue_folder()) if re.match(r"\d+-\d+$", n))
+		listed = os.listdir(queue_folder())
 	except OSError:
 		return []
+	names = sorted(n for n in listed if re.match(r"\d+-\d+$", n))
+	for name in listed if prune else ():
+		path = os.path.join(queue_folder(), name)
+		if name.endswith(".tmp") and file_age(path) > 60:
+			with contextlib.suppress(OSError):
+				os.remove(path)
 	out = []
 	for name in names:
 		path = os.path.join(queue_folder(), name)
