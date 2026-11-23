@@ -1,4 +1,4 @@
-"""bench/rig.py's verdict on load outside the job: a machine's known background (background.json), load
+"""rig.py's verdict on load outside the job: a machine's known background (background.json), load
 that has to last before it counts, and --strict.
 
 The verdict's rules on made-up looks run on any OS; whole runs with a real background program need Linux
@@ -9,9 +9,9 @@ import json, os, subprocess, sys, time, types
 
 import pytest
 
-BENCH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "bench")
-RIG = os.path.join(BENCH, "rig.py")
-sys.path.insert(0, BENCH)
+LOCK_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # this repository: the lock files are at its top
+RIG = os.path.join(LOCK_DIR, "rig.py")
+sys.path.insert(0, LOCK_DIR)
 import rig  # noqa: E402
 
 # rig.py looks at the whole machine (every process on it, its CPU and disk load): these tests run with no

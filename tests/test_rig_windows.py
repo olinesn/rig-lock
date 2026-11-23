@@ -1,4 +1,4 @@
-"""bench/rig.py on Windows: its lock file (gpu.lock), its view of the processes (rig_windows.py),
+"""rig.py on Windows: its lock file (gpu.lock), its view of the processes (rig_windows.py),
 the GPU clock log and rig_guard.ps1.
 
 Three kinds of test:
@@ -11,9 +11,9 @@ import os, re, subprocess, sys, time
 
 import pytest
 
-BENCH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "bench")
-RIG = os.path.join(BENCH, "rig.py")
-sys.path.insert(0, BENCH)
+LOCK_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # this repository: the lock files are at its top
+RIG = os.path.join(LOCK_DIR, "rig.py")
+sys.path.insert(0, LOCK_DIR)
 import rig, rig_windows  # noqa: E402
 
 # rig.py looks at the whole machine (every process on it, its CPU and disk load): these tests run with no
@@ -555,7 +555,7 @@ def test_an_error_in_rig_py_keeps_gpu_lock_until_the_job_ends(run):
 	failing.write_text(FAILING_WATCH)
 	go = run.tmp / "go"
 	log = run.tmp / "broken.rig.log"
-	p = subprocess.Popen([sys.executable, str(failing), BENCH, "run", "s1", "broken", "--", sys.executable, "-c", WAIT_FOR,
+	p = subprocess.Popen([sys.executable, str(failing), LOCK_DIR, "run", "s1", "broken", "--", sys.executable, "-c", WAIT_FOR,
 		str(go)], env=run.env, cwd=str(run.tmp), stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 	try:
 		until(lambda: log.exists() and "rig.py failed" in log.read_text())
@@ -676,7 +676,7 @@ def test_overlap_is_caught_on_windows(run):
 @windows
 def test_guarded_powershell_script_takes_the_rig_once(run):
 	for f in ("rig.py", "rig_windows.py", "rig_guard.ps1"):
-		(run.root / f).write_text(open(os.path.join(BENCH, f)).read())
+		(run.root / f).write_text(open(os.path.join(LOCK_DIR, f)).read())
 	first = '. "%s" @args; if ($null -ne $RigExit) { exit $RigExit }\n' % (run.root / "rig_guard.ps1")
 	inner = run.tmp / "inner.ps1"
 	inner.write_text(first + '"inner $env:RIG_JOB"\nexit 4\n')
@@ -704,7 +704,7 @@ def test_guarded_powershell_script_takes_the_rig_once(run):
 @windows
 def test_guard_ends_a_file_script_that_lacks_the_exit(run):
 	for f in ("rig.py", "rig_windows.py", "rig_guard.ps1"):
-		(run.root / f).write_text(open(os.path.join(BENCH, f)).read())
+		(run.root / f).write_text(open(os.path.join(LOCK_DIR, f)).read())
 	script = run.tmp / "bare.ps1"
 	script.write_text('. "%s" @args\n"body $env:RIG_JOB"\nexit 5\n' % (run.root / "rig_guard.ps1"))
 	r = subprocess.run(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(script), "t2"],
@@ -731,7 +731,7 @@ def test_a_hold_written_like_rig_hold_ps1_holds_while_its_window_runs(root):
 @windows
 def test_rig_hold_ps1_holds_the_rig_until_it_ends(run):
 	for f in ("rig.py", "rig_windows.py", "rig_hold.ps1"):
-		(run.root / f).write_text(open(os.path.join(BENCH, f)).read())
+		(run.root / f).write_text(open(os.path.join(LOCK_DIR, f)).read())
 	ps = ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(run.root / "rig_hold.ps1"),
 		"-Owner", "tester", "-Tag", "training", "-Why", "a test, job=1 pid=2", "-Root", str(run.root)]
 

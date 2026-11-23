@@ -1,4 +1,4 @@
-"""bench/rig.py and an ephys acquisition program (SpikeGLX, Open Ephys) running on the machine.
+"""rig.py and an ephys acquisition program (SpikeGLX, Open Ephys) running on the machine.
 
 It may be recording Neuropixels unattended, through drivers rig.py has no names for (an imec PCIe base station,
 a OneBox, NI DAQ cards), so the program running at all makes the machine busy: status shows it, run waits for
@@ -13,9 +13,9 @@ import datetime, json, os, pathlib, shutil, subprocess, sys, tempfile, time, typ
 
 import pytest
 
-BENCH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "bench")
-RIG = os.path.join(BENCH, "rig.py")
-sys.path.insert(0, BENCH)
+LOCK_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # this repository: the lock files are at its top
+RIG = os.path.join(LOCK_DIR, "rig.py")
+sys.path.insert(0, LOCK_DIR)
 import rig  # noqa: E402
 import rig_windows  # noqa: E402
 

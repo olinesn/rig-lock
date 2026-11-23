@@ -1,4 +1,4 @@
-"""bench/rig.py on an experiment machine (RIG_ROOT/experiment.json): tests start only when nobody uses the
+"""rig.py on an experiment machine (RIG_ROOT/experiment.json): tests start only when nobody uses the
 machine, at the allowed hours and not paused, and stop within 2 s on STOP, input or a device user.
 
 quser's table comes from a file (RIG_QUSER); the banner is off (it needs a Windows session), so the
@@ -8,9 +8,9 @@ import datetime, json, os, subprocess, sys, time
 
 import pytest
 
-BENCH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "bench")
-RIG = os.path.join(BENCH, "rig.py")
-sys.path.insert(0, BENCH)
+LOCK_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # this repository: the lock files are at its top
+RIG = os.path.join(LOCK_DIR, "rig.py")
+sys.path.insert(0, LOCK_DIR)
 import rig  # noqa: E402
 
 # rig.py looks at the whole machine (every process on it, its CPU and disk load): these tests run with no

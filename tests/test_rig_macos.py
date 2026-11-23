@@ -1,4 +1,4 @@
-"""bench/rig_macos.py, rig.py's view of the processes on macOS: its parsers run on any OS; what it reads from
+"""rig_macos.py, rig.py's view of the processes on macOS: its parsers run on any OS; what it reads from
 macOS itself (ps, libproc, sysctl) only on a Mac.
 """
 
@@ -6,8 +6,8 @@ import os, struct, subprocess, sys, time
 
 import pytest
 
-BENCH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "bench")
-sys.path.insert(0, BENCH)
+LOCK_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # this repository: the lock files are at its top
+sys.path.insert(0, LOCK_DIR)
 import rig_macos  # noqa: E402
 
 mac = pytest.mark.skipif(sys.platform != "darwin", reason="reads macOS itself")

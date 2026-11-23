@@ -1,4 +1,4 @@
-"""bench/rig.py version and rig.py install: the lock's version, and installing a campy checkout's copy
+"""rig.py version and rig.py install: the lock's version, and installing a campy checkout's copy
 as the machine's.
 
 In-process tests (the lock a gpu.lock file, no process scan) run on any OS; whole runs of rig.py need
@@ -9,9 +9,9 @@ import argparse, os, shutil, subprocess, sys, types
 
 import pytest
 
-BENCH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "bench")
-RIG = os.path.join(BENCH, "rig.py")
-sys.path.insert(0, BENCH)
+LOCK_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # this repository: the lock files are at its top
+RIG = os.path.join(LOCK_DIR, "rig.py")
+sys.path.insert(0, LOCK_DIR)
 import rig as riglib  # noqa: E402
 
 # rig.py looks at the whole machine (every process on it, its CPU and disk load): these tests run with no
@@ -27,7 +27,7 @@ def copy_lock(folder, extra=b""):
 	"""The five lock files from bench/ in folder (rig_guard.ps1 with extra appended)."""
 	os.makedirs(folder, exist_ok=True)
 	for name in riglib.FILES:
-		with open(os.path.join(BENCH, name), "rb") as f:
+		with open(os.path.join(LOCK_DIR, name), "rb") as f:
 			data = f.read()
 		with open(os.path.join(folder, name), "wb") as f:
 			f.write(data + (extra if name == "rig_guard.ps1" else b""))
@@ -302,16 +302,16 @@ def test_status_and_every_rig_log_say_the_version(tmp_path):
 	r = rig("install", "--check")
 	assert r.returncode == 3, r.stdout + r.stderr
 	r = rig("install", "--allow-dirty")  # this checkout may have uncommitted changes
-	assert r.returncode == 0 and "installed rig.py %s" % riglib.version(BENCH) in r.stdout, r.stdout + r.stderr
+	assert r.returncode == 0 and "installed rig.py %s" % riglib.version(LOCK_DIR) in r.stdout, r.stdout + r.stderr
 	installed = str(root / "rig.py")
 	r = rig("status", script=installed)
 	lines = r.stdout.splitlines()
 	assert lines[0].startswith("rig free") and lines[1].startswith("rig.py %s in %s, installed " % (
-		riglib.version(BENCH), root)), r.stdout + r.stderr
+		riglib.version(LOCK_DIR), root)), r.stdout + r.stderr
 	r = rig("run", "tester", "t1", "--", sys.executable, "-c", "pass", script=installed)
 	assert r.returncode == 0, r.stdout + r.stderr
 	log = (tmp_path / "t1.rig.log").read_text()
-	assert "rig.py %s in %s, installed " % (riglib.version(BENCH), root) in log, log
+	assert "rig.py %s in %s, installed " % (riglib.version(LOCK_DIR), root) in log, log
 	# A run from the checkout says it isn't the installed copy when they differ
 	with open(root / "rig_hold.ps1", "a") as f:
 		f.write("# edited\n")

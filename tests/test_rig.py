@@ -1,4 +1,4 @@
-"""bench/rig.py, the one-test-at-a-time lock for a shared Linux or macOS test machine.
+"""rig.py, the one-test-at-a-time lock for a shared Linux or macOS test machine.
 
 A temporary file stands in for the GPU (RIG_EXTRA), so no device is needed. Whole runs need Linux
 (/proc) or macOS (ps and libproc); the lock in-process (a flock) runs on both, and what rig.py prints on any OS.
@@ -8,9 +8,9 @@ import os, re, shlex, shutil, signal, subprocess, sys, threading, time
 
 import pytest
 
-BENCH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "bench")
-RIG = os.path.join(BENCH, "rig.py")
-sys.path.insert(0, BENCH)
+LOCK_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # this repository: the lock files are at its top
+RIG = os.path.join(LOCK_DIR, "rig.py")
+sys.path.insert(0, LOCK_DIR)
 import rig as riglib  # noqa: E402
 
 # rig.py looks at the whole machine (every process on it, its CPU and disk load): these tests run with no
@@ -147,7 +147,7 @@ def test_guarded_script_takes_the_rig_once(rig, tmp_path):
 	# rig_guard.sh re-runs a script under rig.py; a guarded script it calls does not wait on itself
 	root = rig.root
 	for f in ("rig.py", "rig_macos.py", "rig_guard.sh"):
-		(root / f).write_text(open(os.path.join(BENCH, f)).read())
+		(root / f).write_text(open(os.path.join(LOCK_DIR, f)).read())
 	inner = tmp_path / "inner.sh"
 	inner.write_text('. "$RIG_ROOT/rig_guard.sh" "$@"\necho "inner $RIG_JOB"\n')
 	outer = tmp_path / "outer.sh"
@@ -239,7 +239,7 @@ def test_queued_guarded_jobs_each_start_when_rig_py_is_slow(rig, tmp_path):
 	# forever on the rig its own rig.py holds
 	root = rig.root
 	for f in ("rig.py", "rig_macos.py", "rig_guard.sh"):
-		(root / f).write_text(open(os.path.join(BENCH, f)).read())
+		(root / f).write_text(open(os.path.join(LOCK_DIR, f)).read())
 	slow = tmp_path / "slow_rig.py"
 	slow.write_text(SLOW_START)
 	job = tmp_path / "job.sh"
@@ -420,7 +420,7 @@ def test_an_error_in_rig_py_keeps_the_rig_until_the_job_ends(rig, tmp_path):
 	failing = tmp_path / "failing_rig.py"
 	failing.write_text(FAILING_WATCH)
 	go = tmp_path / "go"
-	r = subprocess.Popen([sys.executable, str(failing), BENCH, "run", "tester", "broken", "--", sys.executable, "-c",
+	r = subprocess.Popen([sys.executable, str(failing), LOCK_DIR, "run", "tester", "broken", "--", sys.executable, "-c",
 		WAIT_FOR, str(go)], env=rig.env, cwd=str(tmp_path), stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 	try:
 		until(lambda: "rig.py failed" in text(tmp_path / "broken.rig.log"))
@@ -576,8 +576,8 @@ def test_a_signal_ignored_at_start_stays_ignored():
 	# nohup ignores SIGHUP for rig.py; catching it would let a hangup stop the run after all
 	def start(hup):
 		return lambda: signal.signal(signal.SIGHUP, hup)
-	plain = subprocess.run([sys.executable, "-c", SIGNALS, BENCH], capture_output=True, text=True, preexec_fn=start(signal.SIG_DFL))
-	nohup = subprocess.run([sys.executable, "-c", SIGNALS, BENCH], capture_output=True, text=True, preexec_fn=start(signal.SIG_IGN))
+	plain = subprocess.run([sys.executable, "-c", SIGNALS, LOCK_DIR], capture_output=True, text=True, preexec_fn=start(signal.SIG_DFL))
+	nohup = subprocess.run([sys.executable, "-c", SIGNALS, LOCK_DIR], capture_output=True, text=True, preexec_fn=start(signal.SIG_IGN))
 	assert plain.stdout.split() == ["False", "False", "False"], plain.stdout + plain.stderr
 	assert nohup.stdout.split() == ["True", "False", "False"], nohup.stdout + nohup.stderr
 
@@ -594,7 +594,7 @@ open(sys.argv[2], "w").write("went on")
 
 def test_what_rig_py_says_can_not_stop_it(tmp_path):
 	# its output closed (rig.py run ... | head, a cut ssh): say goes on, and so does rig.py, any OS
-	p = subprocess.Popen([sys.executable, "-c", SAYS, BENCH, str(tmp_path / "out")], stdout=subprocess.PIPE,
+	p = subprocess.Popen([sys.executable, "-c", SAYS, LOCK_DIR, str(tmp_path / "out")], stdout=subprocess.PIPE,
 		stderr=subprocess.PIPE)
 	p.stdout.close()
 	p.stdout = None  # communicate() must not read it (Windows reads it in a thread)

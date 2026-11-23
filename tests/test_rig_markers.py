@@ -1,4 +1,4 @@
-"""bench/rig.py on Windows never counts another rig.py as a GPU user, however it was started.
+"""rig.py on Windows never counts another rig.py as a GPU user, however it was started.
 
 A python.exe counts as on the GPU unless it is another rig.py, which rig.py knew only by its command
 line; but a rig.py at the desktop can't read the command line of a python.exe started over ssh
@@ -15,9 +15,9 @@ import os, subprocess, sys, time, types
 
 import pytest
 
-BENCH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "bench")
-RIG = os.path.join(BENCH, "rig.py")
-sys.path.insert(0, BENCH)
+LOCK_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # this repository: the lock files are at its top
+RIG = os.path.join(LOCK_DIR, "rig.py")
+sys.path.insert(0, LOCK_DIR)
 import rig, rig_windows  # noqa: E402
 
 # rig.py looks at the whole machine: these tests run with no other test beside them (conftest.py, 'alone')

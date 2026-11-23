@@ -1,0 +1,5 @@
+# Python files are text: a Windows checkout gets \r\n, which the lock's version ignores
+*.py     text diff=python
+*.txt    text
+*.yml    text
+*.md     text
